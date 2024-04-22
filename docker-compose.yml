@@ -1,0 +1,45 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    command: "python -m api"
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://admin:admin@db:5432/admin
+    depends_on:
+      - migrations
+    ports:
+      - "80:80"
+    volumes:
+      - "./api:/opt/api:ro"
+      - "./src:/opt/src:ro"
+
+  db:
+    image: postgres:15.3-alpine3.18
+    hostname: "db"
+    env_file:
+      - ".env"
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-q", "-d", "${POSTGRES_DB}", "-U", "${POSTGRES_USER}" ]
+      timeout: 10s
+      interval: 10s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  migrations:
+    build:
+      context: .
+      dockerfile: migrations/Dockerfile
+    command: "python -m migrations"
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://admin:admin@db:5432/admin
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - "./migrations:/opt/migrations:rw"
+      - "./src:/opt/src:ro"
+      - "./alembic.ini:/opt/alembic.ini:ro"

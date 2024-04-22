@@ -1,8 +1,14 @@
-from fastapi import APIRouter
-from starlette.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT
+from fastapi import APIRouter, HTTPException
+from sqlalchemy import select, asc, desc, delete
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import joinedload, with_loader_criteria
+from starlette.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_400_BAD_REQUEST, \
+    HTTP_404_NOT_FOUND
 
-from api.annotated_types import CategoryID
-from src.types import CategoryCreateDTO, CategoryDTO, CategoryUpdateDTO
+from api.annotated_types import CategoryID, PageQuery, PageNumberQuery, CategorySortAttrQuery, SortByQuery
+from src.database import Category, Article
+from src.dependencies.database_session import DBAsyncSession
+from src.types import CategoryCreateDTO, CategoryDTO, CategoryUpdateDTO, CategoryExtendedDTO
 
 router = APIRouter(tags=["Category"])
 
@@ -15,8 +21,22 @@ router = APIRouter(tags=["Category"])
     summary="Getting a list of categories",
     name="category-list"
 )
-async def category_list():
-    return [CategoryDTO(id=1, name="Sport"), CategoryDTO(id=2, name="Finance")]
+async def category_list(
+        session: DBAsyncSession,
+        page: PageQuery = 1,
+        page_number: PageNumberQuery = 25,
+        order: CategorySortAttrQuery = "id",
+        order_by: SortByQuery = "asc"
+):
+    statement = select(Category).limit(page_number).offset(page * page_number - page_number)
+
+    if order_by == "asc":
+        statement = statement.order_by(asc(order))
+    else:
+        statement = statement.order_by(desc(order))
+
+    objs = await session.scalars(statement=statement)
+    return [CategoryDTO.model_validate(obj=obj) for obj in objs.all()]
 
 
 @router.post(
@@ -27,18 +47,40 @@ async def category_list():
     summary="Creating a new category",
     name="category-create"
 )
-async def category_create(data: CategoryCreateDTO):
-    return CategoryDTO(id=3, **data.model_dump())
+async def category_create(session: DBAsyncSession, data: CategoryCreateDTO):
+    category = Category(**data.model_dump())
+    session.add(instance=category)
+    try:
+        await session.commit()
+    except IntegrityError:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail=f"category {data.name} exists")
+    else:
+        await session.refresh(instance=category)
+        return CategoryDTO.model_validate(obj=category)
 
 
 @router.get(
     path="/categories/{id}",
-    response_model=CategoryDTO,
+    response_model=CategoryExtendedDTO,
     status_code=HTTP_200_OK,
     name="category-detail"
 )
-async def category_detail(pk: CategoryID):
-    return CategoryDTO(id=pk, name="Mock")
+async def category_detail(session: DBAsyncSession, pk: CategoryID):
+    # category = await session.get(
+    #     entity=Category,
+    #     ident=pk,
+    #     options=[joinedload(Category.articles).subqueryload(Article.tags)]
+    # )
+    category = await session.scalar(
+        statement=select(Category)
+        .options(
+            joinedload(Category.articles).subqueryload(Article.tags),
+            # with_loader_criteria(Article, Article.id >= 10)
+        )
+    )
+    if category is None:
+        raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"category {pk} does not exist")
+    return CategoryExtendedDTO.model_validate(obj=category)
 
 
 @router.put(
@@ -47,8 +89,16 @@ async def category_detail(pk: CategoryID):
     response_model=CategoryDTO,
     name="category-update"
 )
-async def category_update(body: CategoryUpdateDTO, pk: CategoryID):
-    return CategoryDTO(id=pk, **body.model_dump())
+async def category_update(session: DBAsyncSession, body: CategoryUpdateDTO, pk: CategoryID):
+    obj = await session.get(entity=Category, ident=pk)
+    for k, v in body:
+        setattr(obj, k, v)
+    try:
+        await session.commit()
+    except IntegrityError:
+        raise HTTPException(status_code=HTTP_400_BAD_REQUEST, detail="category name is not unique")
+    else:
+        return CategoryDTO.model_validate(obj=obj)
 
 
 @router.delete(
@@ -56,5 +106,6 @@ async def category_update(body: CategoryUpdateDTO, pk: CategoryID):
     status_code=HTTP_204_NO_CONTENT,
     name="category-delete"
 )
-async def category_delete(pk: CategoryID):
-    return
+async def category_delete(session: DBAsyncSession, pk: CategoryID):
+    await session.execute(delete(Category).filter(Category.id == pk))
+    await session.commit()

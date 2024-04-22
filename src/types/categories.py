@@ -1,5 +1,6 @@
 from pydantic import Field, PositiveInt
 
+from .articles import ArticleDTO
 from .base import DTO
 
 
@@ -16,3 +17,7 @@ class CategoryUpdateDTO(CategoryCreateDTO):
 
 class CategoryDTO(CategoryCreateDTO):
     id: PositiveInt
+
+
+class CategoryExtendedDTO(CategoryDTO):
+    articles: list[ArticleDTO]
