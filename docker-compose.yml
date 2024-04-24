@@ -10,10 +10,29 @@ services:
       POSTGRES_URL: postgresql+asyncpg://admin:admin@db:5432/admin
     depends_on:
       - migrations
+    env_file:
+      - ".env"
+    ports:
+      - "8080:80"
+    volumes:
+      - "./api:/opt/api:ro"
+      - "./src:/opt/src:ro"
+
+  auth:
+    build:
+      context: .
+      dockerfile: auth/Dockerfile
+    command: "python -m auth"
+    environment:
+      POSTGRES_URL: postgresql+asyncpg://admin:admin@db:5432/admin
+    depends_on:
+      - migrations
+    env_file:
+      - ".env"
     ports:
       - "80:80"
     volumes:
-      - "./api:/opt/api:ro"
+      - "./auth:/opt/auth:ro"
       - "./src:/opt/src:ro"
 
   db:
@@ -39,6 +58,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    env_file:
+      - ".env"
     volumes:
       - "./migrations:/opt/migrations:rw"
       - "./src:/opt/src:ro"

@@ -1,12 +1,18 @@
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import select, asc, desc, delete
+from sqlalchemy import select, asc, desc, delete, and_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import joinedload, with_loader_criteria
-from starlette.status import HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT, HTTP_400_BAD_REQUEST, \
-    HTTP_404_NOT_FOUND
+from sqlalchemy.orm import joinedload
+from starlette.status import (
+    HTTP_200_OK,
+    HTTP_201_CREATED,
+    HTTP_204_NO_CONTENT,
+    HTTP_400_BAD_REQUEST,
+    HTTP_404_NOT_FOUND,
+)
 
 from api.annotated_types import CategoryID, PageQuery, PageNumberQuery, CategorySortAttrQuery, SortByQuery
 from src.database import Category, Article
+from src.dependencies.authenticate import authenticate
 from src.dependencies.database_session import DBAsyncSession
 from src.types import CategoryCreateDTO, CategoryDTO, CategoryUpdateDTO, CategoryExtendedDTO
 
@@ -45,6 +51,7 @@ async def category_list(
     status_code=HTTP_201_CREATED,
     response_description="Detail of category",
     summary="Creating a new category",
+    dependencies=[authenticate],
     name="category-create"
 )
 async def category_create(session: DBAsyncSession, data: CategoryCreateDTO):
@@ -66,16 +73,10 @@ async def category_create(session: DBAsyncSession, data: CategoryCreateDTO):
     name="category-detail"
 )
 async def category_detail(session: DBAsyncSession, pk: CategoryID):
-    # category = await session.get(
-    #     entity=Category,
-    #     ident=pk,
-    #     options=[joinedload(Category.articles).subqueryload(Article.tags)]
-    # )
     category = await session.scalar(
         statement=select(Category)
         .options(
             joinedload(Category.articles).subqueryload(Article.tags),
-            # with_loader_criteria(Article, Article.id >= 10)
         )
     )
     if category is None:
@@ -87,6 +88,7 @@ async def category_detail(session: DBAsyncSession, pk: CategoryID):
     path="/categories/{id}",
     status_code=HTTP_201_CREATED,
     response_model=CategoryDTO,
+    dependencies=[authenticate],
     name="category-update"
 )
 async def category_update(session: DBAsyncSession, body: CategoryUpdateDTO, pk: CategoryID):
@@ -104,8 +106,9 @@ async def category_update(session: DBAsyncSession, body: CategoryUpdateDTO, pk: 
 @router.delete(
     path="/categories/{id}",
     status_code=HTTP_204_NO_CONTENT,
-    name="category-delete"
+    dependencies=[authenticate],
+    name="category-delete",
 )
 async def category_delete(session: DBAsyncSession, pk: CategoryID):
-    await session.execute(delete(Category).filter(Category.id == pk))
+    await session.execute(delete(Category).filter(and_(Category.id == pk)))
     await session.commit()
