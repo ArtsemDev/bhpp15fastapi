@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.exceptions import RequestValidationError
 from sqlalchemy import select, and_
 from sqlalchemy.exc import IntegrityError
 from starlette.responses import RedirectResponse
@@ -6,12 +7,17 @@ from starlette.status import HTTP_201_CREATED, HTTP_400_BAD_REQUEST, HTTP_404_NO
 
 from src.dependencies.database_session import DBAsyncSession
 from src.database import User
+from src.exception_handlers import request_validation_exception_handler
 from src.types import UserRegisterDTO, UserLoginDTO, TokenPairDTO, RefreshTokenDTO, UserDTO
 from src.utils.password import create_password_hash, verify_password
 from src.settings import jwt_manager, settings
 from auth.google import fetch_google_user_info
 
 app = FastAPI()
+app.add_exception_handler(
+    exc_class_or_status_code=RequestValidationError,
+    handler=request_validation_exception_handler  # noqa
+)
 
 
 GOOGLE_LOGIN_URL = (
