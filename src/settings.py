@@ -1,7 +1,7 @@
 from datetime import timedelta
 from pathlib import Path
 
-from pydantic import PostgresDsn, SecretStr, HttpUrl
+from pydantic import PostgresDsn, SecretStr, HttpUrl, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: SecretStr
     GOOGLE_CLIENT_SECRET: SecretStr
     GOOGLE_REDIRECT_URI: HttpUrl
+
+    CELERY_BROKER_URL: RedisDsn
+    CELERY_RESULT_BACKEND: RedisDsn
+    CELERY_RESULT_EXTENDED: bool
 
 
 settings = Settings()

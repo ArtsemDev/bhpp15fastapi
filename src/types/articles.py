@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import PositiveInt, Field
 
@@ -16,3 +17,4 @@ class ArticleDTO(DTO):
     created_at: datetime
     is_published: bool
     tags: list[TagDTO]
+    picture: Optional[str] = Field(default=None)

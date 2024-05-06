@@ -45,6 +45,18 @@ async def category_list(
     return [CategoryDTO.model_validate(obj=obj) for obj in objs.all()]
 
 
+# @router.get(path="/job")
+# async def start_job():
+#     task = foo.delay(6, 6)
+#     return {"job_id": task.id}
+#
+#
+# @router.get(path="/job/status/{job_id}")
+# async def get_job(job_id: str = Path()):
+#     task = AsyncResult(id=job_id)
+#     return {"status": task.status}
+
+
 @router.post(
     path="/categories",
     response_model=CategoryDTO,
