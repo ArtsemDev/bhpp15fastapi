@@ -90,6 +90,7 @@ async def category_detail(session: DBAsyncSession, pk: CategoryID):
         .options(
             joinedload(Category.articles).subqueryload(Article.tags),
         )
+        .filter(and_(Category.id == pk))
     )
     if category is None:
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail=f"category {pk} does not exist")
